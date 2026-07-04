@@ -135,7 +135,7 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
 .task-input:focus{border-color:var(--teal-dim);}
 .task-add-btn{background:var(--teal-dim);border:none;border-radius:3px;color:var(--text);font-size:0.72rem;padding:0.38rem 0.65rem;cursor:pointer;}
 
-.card-actions{display:flex;gap:0.4rem;margin-top:0.65rem;padding-top:0.65rem;border-top:1px solid var(--border);}
+.card-actions{display:flex;gap:0.4rem;margin-top:0.65rem;padding-top:0.65rem;border-top:1px solid var(--border);flex-wrap:wrap;}
 .action-btn{font-family:'Space Mono',monospace;font-size:0.55rem;letter-spacing:0.07em;padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:none;color:var(--text-muted);transition:all 0.15s;}
 .action-btn:hover{color:var(--text);border-color:var(--text-muted);}
 .action-btn.danger:hover{color:var(--pink);border-color:var(--pink-dim);}
@@ -246,6 +246,21 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddModal()">キャンセル</button>
       <button class="btn-save" onclick="saveProject()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h2>EDIT PROJECT</h2>
+    <div class="field"><label>プロジェクト名</label><input type="text" id="e-name"></div>
+    <div class="field"><label>ゴール</label><textarea id="e-goal"></textarea></div>
+    <div class="field"><label>できたらどうなる？</label><textarea id="e-result"></textarea></div>
+    <div class="field"><label>期限（延長・変更OK）</label><input type="date" id="e-deadline"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEditModal()">キャンセル</button>
+      <button class="btn-save" onclick="saveEdit()">保存</button>
     </div>
   </div>
 </div>
@@ -496,7 +511,9 @@ function cardHTML(p){
         </div>
       </div>
       <div class="card-actions">
-        ${!p.done?`<button class="action-btn complete" onclick="markDone('${p.id}')">✓ 完了にする</button>`:`<button class="action-btn" onclick="markUndone('${p.id}')">← 戻す</button>`}
+        ${!p.done?`<button class="action-btn" onclick="moveProject('${p.id}',-1)">↑ 上へ</button><button class="action-btn" onclick="moveProject('${p.id}',1)">↓ 下へ</button>`:''}
+        <button class="action-btn" onclick="openEditModal('${p.id}')">✎ 編集</button>
+        ${!p.done?`<button class="action-btn complete" onclick="markDone('${p.id}')">✓ 完了</button>`:`<button class="action-btn" onclick="markUndone('${p.id}')">← 戻す</button>`}
         <button class="action-btn danger" onclick="deleteProject('${p.id}')">削除</button>
       </div>
     </div>
@@ -568,6 +585,52 @@ function saveProject(){
     tasks:[], done:false, createdAt:new Date().toISOString()
   });
   saveProjects(); renderProjects(); closeAddModal();
+}
+
+// EDIT PROJECT
+let editingId = null;
+function openEditModal(id){
+  editingId = id;
+  const p = projects.find(x=>x.id===id);
+  document.getElementById('e-name').value = p.name;
+  document.getElementById('e-goal').value = p.goal || '';
+  document.getElementById('e-result').value = p.result || '';
+  document.getElementById('e-deadline').value = p.deadline || '';
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeEditModal(){
+  document.getElementById('edit-modal').classList.remove('open');
+  editingId = null;
+}
+function saveEdit(){
+  const p = projects.find(x=>x.id===editingId);
+  if(!p) return;
+  const name = document.getElementById('e-name').value.trim();
+  if(!name) return;
+  p.name = name;
+  p.goal = document.getElementById('e-goal').value.trim();
+  p.result = document.getElementById('e-result').value.trim();
+  p.deadline = document.getElementById('e-deadline').value;
+  saveProjects();
+  const onDone = document.getElementById('page-done').classList.contains('active');
+  if(onDone) renderDone(); else renderProjects();
+  closeEditModal();
+}
+
+// MOVE PROJECT (並び替え)
+function moveProject(id, dir){
+  // active プロジェクトの中での並び替え
+  const activeIds = projects.filter(p=>!p.done).map(p=>p.id);
+  const pos = activeIds.indexOf(id);
+  const newPos = pos + dir;
+  if(newPos < 0 || newPos >= activeIds.length) return;
+  // projects配列全体でのインデックスを取得して入れ替え
+  const idxA = projects.findIndex(p=>p.id===activeIds[pos]);
+  const idxB = projects.findIndex(p=>p.id===activeIds[newPos]);
+  [projects[idxA], projects[idxB]] = [projects[idxB], projects[idxA]];
+  saveProjects();
+  renderProjects();
+  setTimeout(()=>{ document.getElementById('detail-'+id)?.classList.add('open'); },10);
 }
 
 // INIT
