@@ -26,7 +26,7 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:50;}
 .nav-btn{flex:1;padding:0.75rem 0.5rem 0.6rem;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
 .nav-btn span:first-child{font-size:1.2rem;line-height:1;}
-.nav-btn span:last-child{font-family:'Space Mono',monospace;font-size:0.5rem;letter-spacing:0.06em;color:var(--text-muted);}
+.nav-btn span:last-child{font-family:'Space Mono',monospace;font-size:0.45rem;letter-spacing:0.03em;color:var(--text-muted);}
 .nav-btn.active span:last-child{color:var(--teal);}
 .nav-btn.active{border-top:2px solid var(--teal);}
 
@@ -222,6 +222,39 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
   </div>
 </div>
 
+<!-- SETTINGS -->
+<div class="page" id="page-settings">
+  <div class="section">
+    <div class="sec-label">BACKUP / バックアップ</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:1rem;">
+      <p style="font-size:0.8rem;color:var(--text-muted);line-height:1.7;margin-bottom:1rem;">
+        データを書き出して保存しておけば、万一のときや機種変更のときに復元できます。定期的にバックアップすると安心です。
+      </p>
+      <button onclick="exportData()" style="width:100%;padding:0.7rem;background:var(--teal);border:none;border-radius:5px;color:var(--bg);font-weight:700;font-size:0.85rem;font-family:'Noto Sans JP',sans-serif;cursor:pointer;margin-bottom:0.6rem;">
+        ⬇ バックアップを書き出す
+      </button>
+      <label style="display:block;width:100%;padding:0.7rem;background:none;border:1px solid var(--teal-dim);border-radius:5px;color:var(--teal);font-weight:700;font-size:0.85rem;text-align:center;cursor:pointer;">
+        ⬆ バックアップから復元する
+        <input type="file" accept=".json" onchange="importData(event)" style="display:none;">
+      </label>
+    </div>
+  </div>
+  <div class="section">
+    <div class="sec-label">DATA / データ</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:1rem;">
+      <p style="font-size:0.8rem;color:var(--text-muted);line-height:1.7;margin-bottom:1rem;">
+        全データをリセットして初期状態に戻します。この操作は取り消せません。
+      </p>
+      <button onclick="resetAllData()" style="width:100%;padding:0.7rem;background:none;border:1px solid var(--pink-dim);border-radius:5px;color:var(--pink);font-weight:700;font-size:0.85rem;font-family:'Noto Sans JP',sans-serif;cursor:pointer;">
+        全データをリセット
+      </button>
+    </div>
+  </div>
+  <div style="font-family:'Space Mono',monospace;font-size:0.55rem;color:var(--text-muted);text-align:center;margin-top:1.5rem;letter-spacing:0.05em;">
+    MEGAHERTZ PROJECT TRACKER<br>データはこの端末のブラウザに保存されています
+  </div>
+</div>
+
 <!-- BOTTOM NAV -->
 <nav class="bottom-nav">
   <button class="nav-btn active" id="nav-dash" onclick="switchPage('dash')">
@@ -232,6 +265,9 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
   </button>
   <button class="nav-btn" id="nav-done" onclick="switchPage('done')">
     <span>✅</span><span>完了済み</span>
+  </button>
+  <button class="nav-btn" id="nav-settings" onclick="switchPage('settings')">
+    <span>⚙️</span><span>設定</span>
   </button>
 </nav>
 
@@ -354,7 +390,7 @@ function switchPage(page){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
   document.getElementById('nav-'+page).classList.add('active');
-  const labels = {dash:'DASHBOARD',projects:'PROJECTS',done:'COMPLETED'};
+  const labels = {dash:'DASHBOARD',projects:'PROJECTS',done:'COMPLETED',settings:'SETTINGS'};
   document.getElementById('header-sub').textContent = labels[page];
   if(page==='dash') renderDash();
   if(page==='projects') renderProjects();
@@ -631,6 +667,61 @@ function moveProject(id, dir){
   saveProjects();
   renderProjects();
   setTimeout(()=>{ document.getElementById('detail-'+id)?.classList.add('open'); },10);
+}
+
+// BACKUP / RESTORE
+function exportData(){
+  const data = {
+    projects: projects,
+    habits: habits,
+    kpi: kpi,
+    exportedAt: new Date().toISOString(),
+    version: 1
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `megahertz-backup-${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  alert('バックアップを書き出しました。ファイルアプリやiCloudに保存しておいてください。');
+}
+
+function importData(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const data = JSON.parse(e.target.result);
+      if(!data.projects){ alert('このファイルは正しいバックアップではないようです。'); return; }
+      if(!confirm('現在のデータを、このバックアップの内容で上書きします。よろしいですか？')) return;
+      projects = data.projects || [];
+      habits = data.habits || habits;
+      kpi = data.kpi || kpi;
+      saveProjects(); saveHabits(); saveKpiData();
+      alert('復元しました！');
+      switchPage('dash');
+      document.getElementById('nav-dash').click();
+    } catch(err) {
+      alert('ファイルの読み込みに失敗しました。');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function resetAllData(){
+  if(!confirm('本当に全データをリセットしますか？この操作は取り消せません。')) return;
+  if(!confirm('もう一度確認します。すべてのプロジェクト・タスク・記録が消えます。よろしいですか？')) return;
+  localStorage.removeItem('mhz_projects');
+  localStorage.removeItem('mhz_habits');
+  localStorage.removeItem('mhz_kpi');
+  location.reload();
 }
 
 // INIT
