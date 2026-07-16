@@ -95,6 +95,22 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
 .update-link{margin-top:0.5rem;text-align:right;}
 .update-link button{background:none;border:none;font-family:'Space Mono',monospace;font-size:0.55rem;color:var(--teal);cursor:pointer;letter-spacing:0.07em;}
 
+/* WORKOUT */
+.wo-item{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:0.85rem 0.9rem;margin-bottom:0.55rem;display:flex;align-items:center;justify-content:space-between;gap:0.6rem;}
+.wo-info{flex:1;min-width:0;}
+.wo-name{font-size:0.88rem;font-weight:700;margin-bottom:0.2rem;}
+.wo-today{font-family:'Space Mono',monospace;font-size:0.55rem;color:var(--text-muted);}
+.wo-today.done{color:var(--teal);}
+.wo-btn{background:var(--teal);border:none;border-radius:5px;color:var(--bg);font-weight:700;font-size:0.78rem;padding:0.5rem 0.9rem;cursor:pointer;font-family:'Noto Sans JP',sans-serif;white-space:nowrap;}
+.wo-btn.done{background:var(--teal-dim);color:var(--text);}
+.wo-del{background:none;border:none;color:var(--text-muted);font-size:0.9rem;cursor:pointer;padding:0.3rem;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:0.85rem 0.9rem;margin-bottom:0.55rem;}
+.chart-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.5rem;}
+.chart-name{font-size:0.82rem;font-weight:700;}
+.chart-best{font-family:'Space Mono',monospace;font-size:0.55rem;color:var(--teal);}
+.chart-svg{width:100%;height:80px;}
+.chart-empty{font-size:0.7rem;color:var(--text-muted);padding:0.5rem 0;}
+
 /* === PROJECTS === */
 .add-btn{width:100%;padding:0.7rem;background:none;border:1px dashed var(--teal-dim);color:var(--teal);font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:0.1em;cursor:pointer;border-radius:4px;margin-bottom:1.25rem;transition:background 0.2s;}
 .add-btn:hover{background:rgba(42,173,150,0.05);}
@@ -222,6 +238,19 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
   </div>
 </div>
 
+<!-- WORKOUT -->
+<div class="page" id="page-workout">
+  <div class="section">
+    <div class="sec-label">今日のトレーニング</div>
+    <div id="today-workout"></div>
+    <button class="add-btn" onclick="openExerciseModal()" style="margin-top:0.5rem;">＋ 種目を追加</button>
+  </div>
+  <div class="section">
+    <div class="sec-label">推移グラフ</div>
+    <div id="workout-charts"></div>
+  </div>
+</div>
+
 <!-- SETTINGS -->
 <div class="page" id="page-settings">
   <div class="section">
@@ -264,7 +293,10 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
     <span>📋</span><span>プロジェクト</span>
   </button>
   <button class="nav-btn" id="nav-done" onclick="switchPage('done')">
-    <span>✅</span><span>完了済み</span>
+    <span>✅</span><span>完了</span>
+  </button>
+  <button class="nav-btn" id="nav-workout" onclick="switchPage('workout')">
+    <span>💪</span><span>筋トレ</span>
   </button>
   <button class="nav-btn" id="nav-settings" onclick="switchPage('settings')">
     <span>⚙️</span><span>設定</span>
@@ -282,6 +314,30 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddModal()">キャンセル</button>
       <button class="btn-save" onclick="saveProject()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Exercise Add Modal -->
+<div class="modal-overlay" id="exercise-modal">
+  <div class="modal">
+    <h2>種目を追加</h2>
+    <div class="field"><label>種目名</label><input type="text" id="ex-name" placeholder="例：腕立て伏せ、スクワット、懸垂"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeExerciseModal()">キャンセル</button>
+      <button class="btn-save" onclick="saveExercise()">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- Record Modal -->
+<div class="modal-overlay" id="record-modal">
+  <div class="modal">
+    <h2 id="record-title">記録</h2>
+    <div class="field"><label>回数</label><input type="number" id="rec-count" placeholder="例：30" inputmode="numeric"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRecordModal()">キャンセル</button>
+      <button class="btn-save" onclick="saveRecord()">記録する</button>
     </div>
   </div>
 </div>
@@ -335,6 +391,10 @@ let kpi = JSON.parse(localStorage.getItem('mhz_kpi') || JSON.stringify({
   search:{now:181,goal:400},click:{now:103,goal:150},
   review:{now:66,goal:100},stars:{now:4.6,goal:4.8}
 }));
+// 筋トレ: [{id, name, records:[{date:'2026-07-03', count:30}]}]
+let workouts = JSON.parse(localStorage.getItem('mhz_workouts') || '[]');
+
+function saveWorkouts(){ localStorage.setItem('mhz_workouts', JSON.stringify(workouts)); }
 
 function saveProjects(){ localStorage.setItem('mhz_projects', JSON.stringify(projects)); }
 function saveHabits(){ localStorage.setItem('mhz_habits', JSON.stringify(habits)); }
@@ -390,11 +450,12 @@ function switchPage(page){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
   document.getElementById('nav-'+page).classList.add('active');
-  const labels = {dash:'DASHBOARD',projects:'PROJECTS',done:'COMPLETED',settings:'SETTINGS'};
+  const labels = {dash:'DASHBOARD',projects:'PROJECTS',done:'COMPLETED',workout:'WORKOUT',settings:'SETTINGS'};
   document.getElementById('header-sub').textContent = labels[page];
   if(page==='dash') renderDash();
   if(page==='projects') renderProjects();
   if(page==='done') renderDone();
+  if(page==='workout') renderWorkout();
 }
 
 // DASHBOARD
@@ -675,8 +736,9 @@ function exportData(){
     projects: projects,
     habits: habits,
     kpi: kpi,
+    workouts: workouts,
     exportedAt: new Date().toISOString(),
-    version: 1
+    version: 2
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -703,7 +765,8 @@ function importData(event){
       projects = data.projects || [];
       habits = data.habits || habits;
       kpi = data.kpi || kpi;
-      saveProjects(); saveHabits(); saveKpiData();
+      workouts = data.workouts || workouts;
+      saveProjects(); saveHabits(); saveKpiData(); saveWorkouts();
       alert('復元しました！');
       switchPage('dash');
       document.getElementById('nav-dash').click();
@@ -721,7 +784,116 @@ function resetAllData(){
   localStorage.removeItem('mhz_projects');
   localStorage.removeItem('mhz_habits');
   localStorage.removeItem('mhz_kpi');
+  localStorage.removeItem('mhz_workouts');
   location.reload();
+}
+
+// WORKOUT
+let recordingId = null;
+
+function renderWorkout(){
+  const todayEl = document.getElementById('today-workout');
+  if(workouts.length === 0){
+    todayEl.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);padding:0.3rem 0;">まだ種目がありません。下のボタンから追加してください。</div>';
+    document.getElementById('workout-charts').innerHTML = '';
+    return;
+  }
+
+  todayEl.innerHTML = workouts.map(w=>{
+    const todayRec = w.records.find(r=>r.date===todayKey);
+    const doneToday = !!todayRec;
+    return `<div class="wo-item">
+      <div class="wo-info">
+        <div class="wo-name">${w.name}</div>
+        <div class="wo-today ${doneToday?'done':''}">${doneToday?'今日 '+todayRec.count+'回 済み':'今日はまだ'}</div>
+      </div>
+      <button class="wo-btn ${doneToday?'done':''}" onclick="openRecordModal('${w.id}')">${doneToday?'修正':'記録'}</button>
+      <button class="wo-del" onclick="deleteExercise('${w.id}')">🗑</button>
+    </div>`;
+  }).join('');
+
+  // charts
+  document.getElementById('workout-charts').innerHTML = workouts.map(w=>{
+    const recs = [...w.records].sort((a,b)=>a.date.localeCompare(b.date));
+    if(recs.length === 0){
+      return `<div class="chart-card"><div class="chart-head"><span class="chart-name">${w.name}</span></div><div class="chart-empty">記録するとグラフが表示されます</div></div>`;
+    }
+    const best = Math.max(...recs.map(r=>r.count));
+    return `<div class="chart-card">
+      <div class="chart-head"><span class="chart-name">${w.name}</span><span class="chart-best">最高 ${best}回 / ${recs.length}回記録</span></div>
+      ${lineChartSVG(recs)}
+    </div>`;
+  }).join('');
+}
+
+function lineChartSVG(recs){
+  const W=300, H=80, pad=6;
+  const counts = recs.map(r=>r.count);
+  const max = Math.max(...counts), min = Math.min(...counts, 0);
+  const range = max - min || 1;
+  const n = recs.length;
+  const xStep = n > 1 ? (W - pad*2)/(n-1) : 0;
+  const pts = recs.map((r,i)=>{
+    const x = pad + i*xStep;
+    const y = H - pad - ((r.count - min)/range)*(H - pad*2);
+    return [x,y];
+  });
+  const path = pts.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const dots = pts.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="#2aad96"/>`).join('');
+  // 単一点の場合
+  if(n===1){
+    return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <circle cx="${(W/2).toFixed(1)}" cy="${(H/2).toFixed(1)}" r="3" fill="#2aad96"/>
+      <text x="${(W/2).toFixed(1)}" y="${(H/2-8).toFixed(1)}" fill="#e8f0ee" font-size="11" text-anchor="middle" font-family="monospace">${recs[0].count}</text>
+    </svg>`;
+  }
+  return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <path d="${path}" fill="none" stroke="#2aad96" stroke-width="2"/>
+    ${dots}
+  </svg>`;
+}
+
+function openExerciseModal(){
+  document.getElementById('exercise-modal').classList.add('open');
+  document.getElementById('ex-name').focus();
+}
+function closeExerciseModal(){
+  document.getElementById('exercise-modal').classList.remove('open');
+  document.getElementById('ex-name').value='';
+}
+function saveExercise(){
+  const name = document.getElementById('ex-name').value.trim();
+  if(!name) return;
+  workouts.push({id:Date.now().toString(), name, records:[]});
+  saveWorkouts(); renderWorkout(); closeExerciseModal();
+}
+function deleteExercise(id){
+  if(!confirm('この種目を削除しますか？記録も消えます。')) return;
+  workouts = workouts.filter(w=>w.id!==id);
+  saveWorkouts(); renderWorkout();
+}
+
+function openRecordModal(id){
+  recordingId = id;
+  const w = workouts.find(x=>x.id===id);
+  const todayRec = w.records.find(r=>r.date===todayKey);
+  document.getElementById('record-title').textContent = w.name;
+  document.getElementById('rec-count').value = todayRec ? todayRec.count : '';
+  document.getElementById('record-modal').classList.add('open');
+  document.getElementById('rec-count').focus();
+}
+function closeRecordModal(){
+  document.getElementById('record-modal').classList.remove('open');
+  recordingId = null;
+}
+function saveRecord(){
+  const count = parseInt(document.getElementById('rec-count').value);
+  if(isNaN(count) || count < 0) return;
+  const w = workouts.find(x=>x.id===recordingId);
+  const existing = w.records.find(r=>r.date===todayKey);
+  if(existing) existing.count = count;
+  else w.records.push({date:todayKey, count});
+  saveWorkouts(); renderWorkout(); closeRecordModal();
 }
 
 // INIT
