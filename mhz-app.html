@@ -110,6 +110,16 @@ header span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--text
 .chart-best{font-family:'Space Mono',monospace;font-size:0.55rem;color:var(--teal);}
 .chart-svg{width:100%;height:80px;}
 .chart-empty{font-size:0.7rem;color:var(--text-muted);padding:0.5rem 0;}
+.wo-stats{display:flex;gap:0.5rem;margin-bottom:0.6rem;}
+.wo-stat{flex:1;background:var(--surface2);border-radius:5px;padding:0.4rem;text-align:center;}
+.wo-stat-num{display:block;font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--teal);line-height:1.1;}
+.wo-stat-num.warn{color:var(--amber);}
+.wo-stat-lbl{display:block;font-family:'Space Mono',monospace;font-size:0.5rem;color:var(--text-muted);letter-spacing:0.05em;margin-top:1px;}
+.wo-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:0.6rem;}
+.wo-cal-cell{aspect-ratio:1;border-radius:2px;background:var(--border);}
+.wo-cal-cell.done{background:var(--teal);}
+.wo-cal-cell.today{box-shadow:0 0 0 1px var(--teal);}
+.wo-cal-cell.future{opacity:0.3;}
 
 /* === PROJECTS === */
 .add-btn{width:100%;padding:0.7rem;background:none;border:1px dashed var(--teal-dim);color:var(--teal);font-family:'Space Mono',monospace;font-size:0.65rem;letter-spacing:0.1em;cursor:pointer;border-radius:4px;margin-bottom:1.25rem;transition:background 0.2s;}
@@ -802,10 +812,15 @@ function renderWorkout(){
   todayEl.innerHTML = workouts.map(w=>{
     const todayRec = w.records.find(r=>r.date===todayKey);
     const doneToday = !!todayRec;
+    const stats = workoutStats(w);
+    let sub;
+    if(doneToday) sub = '今日 '+todayRec.count+'回 済み ✓';
+    else if(w.records.length===0) sub = 'まだ記録なし';
+    else sub = '前回から'+stats.daysSinceLabel+' / 🔥'+stats.streak;
     return `<div class="wo-item">
       <div class="wo-info">
         <div class="wo-name">${w.name}</div>
-        <div class="wo-today ${doneToday?'done':''}">${doneToday?'今日 '+todayRec.count+'回 済み':'今日はまだ'}</div>
+        <div class="wo-today ${doneToday?'done':''}">${sub}</div>
       </div>
       <button class="wo-btn ${doneToday?'done':''}" onclick="openRecordModal('${w.id}')">${doneToday?'修正':'記録'}</button>
       <button class="wo-del" onclick="deleteExercise('${w.id}')">🗑</button>
@@ -816,14 +831,67 @@ function renderWorkout(){
   document.getElementById('workout-charts').innerHTML = workouts.map(w=>{
     const recs = [...w.records].sort((a,b)=>a.date.localeCompare(b.date));
     if(recs.length === 0){
-      return `<div class="chart-card"><div class="chart-head"><span class="chart-name">${w.name}</span></div><div class="chart-empty">記録するとグラフが表示されます</div></div>`;
+      return `<div class="chart-card"><div class="chart-head"><span class="chart-name">${w.name}</span></div><div class="chart-empty">記録するとグラフとカレンダーが表示されます</div></div>`;
     }
     const best = Math.max(...recs.map(r=>r.count));
+    const stats = workoutStats(w);
     return `<div class="chart-card">
-      <div class="chart-head"><span class="chart-name">${w.name}</span><span class="chart-best">最高 ${best}回 / ${recs.length}回記録</span></div>
+      <div class="chart-head"><span class="chart-name">${w.name}</span><span class="chart-best">最高 ${best}回</span></div>
+      <div class="wo-stats">
+        <div class="wo-stat"><span class="wo-stat-num">${stats.streak}</span><span class="wo-stat-lbl">🔥 連続</span></div>
+        <div class="wo-stat"><span class="wo-stat-num">${stats.thisWeek}</span><span class="wo-stat-lbl">今週</span></div>
+        <div class="wo-stat"><span class="wo-stat-num ${stats.daysSince>=4?'warn':''}">${stats.daysSinceLabel}</span><span class="wo-stat-lbl">最終から</span></div>
+      </div>
+      ${workoutCalendar(w)}
       ${lineChartSVG(recs)}
     </div>`;
   }).join('');
+}
+
+function workoutStats(w){
+  const dates = w.records.map(r=>r.date).sort();
+  // streak: 今日または昨日から遡って連続何日
+  let streak = 0;
+  let cursor = new Date(today);
+  // 今日やってなければ昨日基準で見る
+  const hasToday = dates.includes(todayKey);
+  if(!hasToday){
+    cursor.setDate(cursor.getDate()-1);
+  }
+  while(true){
+    const key = cursor.toISOString().slice(0,10);
+    if(dates.includes(key)){ streak++; cursor.setDate(cursor.getDate()-1); }
+    else break;
+  }
+  // 今週（日曜起点）
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
+  weekStart.setHours(0,0,0,0);
+  const thisWeek = w.records.filter(r=>new Date(r.date) >= weekStart).length;
+  // 最終実施からの経過
+  let daysSince = null, daysSinceLabel = '—';
+  if(dates.length){
+    const last = new Date(dates[dates.length-1]);
+    daysSince = Math.floor((today - last)/(1000*60*60*24));
+    daysSinceLabel = daysSince===0 ? '今日' : daysSince+'日';
+  }
+  return {streak, thisWeek, daysSince: daysSince??999, daysSinceLabel};
+}
+
+function workoutCalendar(w){
+  const year=today.getFullYear(), month=today.getMonth();
+  const days=[];
+  for(let d=new Date(year,month,1);d<=new Date(year,month+1,0);d.setDate(d.getDate()+1))
+    days.push(d.toISOString().slice(0,10));
+  const firstDow=new Date(days[0]).getDay();
+  const doneSet = new Set(w.records.map(r=>r.date));
+  const cells=[];
+  for(let i=0;i<firstDow;i++) cells.push('<div></div>');
+  days.forEach(d=>{
+    const done=doneSet.has(d), isTod=d===todayKey, fut=d>todayKey;
+    cells.push(`<div class="wo-cal-cell ${done?'done':''} ${isTod?'today':''} ${fut?'future':''}" title="${d}"></div>`);
+  });
+  return `<div class="wo-cal">${cells.join('')}</div>`;
 }
 
 function lineChartSVG(recs){
